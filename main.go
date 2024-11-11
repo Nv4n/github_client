@@ -82,6 +82,13 @@ func presentGhData(users []gh.UserFormattedData) {
 }
 
 func main() {
+//TODO
+//	Add flags for filename and repoLimit
+//	Fix language % formula
+//	Add goroutines
+//	Add WaitGroups
+//	Add web representation with e-charts
+
 	if len(os.Args) < 2 {
 		log.Fatal("No filenames in the cli arguments")
 	}
