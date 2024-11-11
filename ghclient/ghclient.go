@@ -6,7 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type UserData struct {
@@ -44,7 +47,7 @@ type UserFormattedData struct {
 func fetchGithubData[ReturnType UserData | []RepoData | map[string]interface{}](client *http.Client, request *http.Request) ReturnType {
 	res, err := client.Do(request)
 	if err != nil {
-		log.Fatalf("error on doing request: %v\n", err)
+		log.Fatalf("error on doing request: %v\nREQUEST: %v\n", err, request)
 	}
 	if res == nil {
 		log.Fatalf("error not getting any response or hitting rate limit")
@@ -121,11 +124,20 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 	client := http.Client{
 		Timeout: time.Second * 10,
 	}
+	godotenv.Load(".env")
+	token := os.Getenv("GH_TOKEN")
+
+	if token == "" {
+		log.Fatal(fmt.Errorf("empty gh_token"))
+	}
 
 	user := UserFullData{}
 	userRequest, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("https://api.github.com/users/%s", username), nil)
+	userRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	user.UserData = fetchGithubData[UserData](&client, userRequest)
 	reposRequest, _ := http.NewRequest(http.MethodGet, user.UserData.ReposApiURL, nil)
+	reposRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
 	user.Repos = fetchGithubData[[]RepoData](&client, reposRequest)
 
 	if repoLimit == -1 {
@@ -137,6 +149,7 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 	languageKBList := make(map[string]float64)
 	for _, url := range langApiList {
 		languageRequest, _ := http.NewRequest(http.MethodGet, url, nil)
+		languageRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 
 		repoLangUsage := fetchGithubData[map[string]interface{}](&client, languageRequest)
 		for lang, val := range repoLangUsage {
