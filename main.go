@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	gh "ghclient_homework/ghclient"
-	"github.com/olekukonko/tablewriter"
 	"log"
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 func readUsernames(file *os.File) []string {
@@ -62,6 +63,7 @@ func presentGhData(users []gh.UserFormattedData) {
 	tbl.SetAutoFormatHeaders(true)
 	tbl.SetBorder(true)
 	tbl.SetRowSeparator("=")
+	tbl.SetRowLine(true)
 	tbl.SetAutoWrapText(true)
 
 	for _, u := range users {
