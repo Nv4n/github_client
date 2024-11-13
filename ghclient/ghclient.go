@@ -7,42 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
-
-	"github.com/joho/godotenv"
 )
-
-type UserData struct {
-	Username    string `json:"login"`
-	ReposApiURL string `json:"repos_url"`
-	Followers   int    `json:"followers"`
-}
-
-type RepoData struct {
-	Name            string    `json:"name"`
-	LanguagesApiURL string    `json:"languages_url"`
-	ForksCount      int       `json:"forks_count"`
-	CreatedAt       time.Time `json:"created_at"`
-	PushedAt        time.Time `json:"pushed_at"`
-}
-
-type LanguageDistribution map[string]float64
-type UserActivity map[int]int
-
-type UserFullData struct {
-	UserData             UserData
-	Repos                []RepoData
-	LanguageDistribution LanguageDistribution
-}
-
-type UserFormattedData struct {
-	Username             string
-	Followers            int
-	ForksCount           int
-	RepoCount            int
-	LanguageDistribution LanguageDistribution
-	UserActivity         UserActivity
-}
 
 func fetchGithubData[ReturnType UserData | []RepoData | map[string]interface{}](client *http.Client, request *http.Request) ReturnType {
 	res, err := client.Do(request)
@@ -97,47 +64,26 @@ func calcLangDistribution(distribution LanguageDistribution, percentageThreshold
 	return langDistribution
 }
 
-func calcTotalForksCount(repos []RepoData) int {
-	count := 0
-	for _, r := range repos {
-		count = count + r.ForksCount
-	}
-	return count
-}
-
-func calcUserActivity(repos []RepoData) UserActivity {
-	userActivity := make(map[int]int)
-	for _, r := range repos {
-		pushedAt := r.PushedAt.Year()
-		createdAt := r.CreatedAt.Year()
-		userActivity[pushedAt] += 1
-		if createdAt < pushedAt {
-			for y := createdAt; y < pushedAt; y++ {
-				userActivity[y] += 1
-			}
-		}
-	}
-	return userActivity
-}
-
 func GetUserData(username string, repoLimit int, langThreshold float64) UserFormattedData {
 	client := http.Client{
 		Timeout: time.Second * 10,
 	}
-	godotenv.Load(".env")
+
 	token := os.Getenv("GH_TOKEN")
 
 	if token == "" {
 		log.Fatal(fmt.Errorf("empty gh_token"))
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(2)
 	user := UserFullData{}
 	userRequest, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("https://api.github.com/users/%s", username), nil)
 	userRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	user.UserData = fetchGithubData[UserData](&client, userRequest)
+
 	reposRequest, _ := http.NewRequest(http.MethodGet, user.UserData.ReposApiURL, nil)
 	reposRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-
 	user.Repos = fetchGithubData[[]RepoData](&client, reposRequest)
 
 	if repoLimit == -1 {
