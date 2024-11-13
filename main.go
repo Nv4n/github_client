@@ -3,14 +3,15 @@ package main
 import (
 	"bufio"
 	"fmt"
-	gh "ghclient_homework/ghclient"
+	gh "ghclient/ghclient"
+	pres "ghclient/presenter"
+	"github.com/joho/godotenv"
 	"log"
 	"os"
-	"sort"
-	"strings"
-
-	"github.com/olekukonko/tablewriter"
+	"sync"
 )
+
+var wg sync.WaitGroup
 
 func readUsernames(file *os.File) []string {
 	var usernames []string
@@ -27,74 +28,36 @@ func readUsernames(file *os.File) []string {
 func fetchUsers(usernames []string, repoLimit int, langThreshold float64) []gh.UserFormattedData {
 	var users []gh.UserFormattedData
 	for _, u := range usernames {
-		data := gh.GetUserData(u, repoLimit, langThreshold)
-		users = append(users, data)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			data := gh.GetUserData(u, repoLimit, langThreshold)
+			users = append(users, data)
+		}()
 	}
+	wg.Wait()
 	return users
 }
 
-func formatLangDist(langDist gh.LanguageDistribution) string {
-	var builder strings.Builder
-	for l, dist := range langDist {
-		builder.WriteString(fmt.Sprintf("%s: %.2f%% / ", l, dist))
-	}
-	return builder.String()
-}
-
-func formatUserActivity(userActivity gh.UserActivity) string {
-	var builder strings.Builder
-	var years []int
-	for year := range userActivity {
-		years = append(years, year)
-	}
-	sort.Slice(years, func(l, r int) bool {
-		return years[l] > years[r]
-	})
-	for _, y := range years {
-		builder.WriteString(fmt.Sprintf("Y(%v): %v / ", y, userActivity[y]))
-	}
-	return builder.String()
-}
-
-func presentGhData(users []gh.UserFormattedData) {
-	columns := []string{"Username", "Followers", "Forks", "Repo Count", "Language usage", "User Activity"}
-	tbl := tablewriter.NewWriter(os.Stdout)
-	tbl.SetHeader(columns)
-	tbl.SetAutoFormatHeaders(true)
-	tbl.SetBorder(true)
-	tbl.SetRowSeparator("=")
-	tbl.SetRowLine(true)
-	tbl.SetAutoWrapText(true)
-
-	for _, u := range users {
-		langDist := formatLangDist(u.LanguageDistribution)
-		userActivity := formatUserActivity(u.UserActivity)
-		data := []string{u.Username,
-			fmt.Sprintf("%d", u.Followers),
-			fmt.Sprintf("%d", u.ForksCount),
-			fmt.Sprintf("%d", u.RepoCount),
-			langDist,
-			userActivity}
-		tbl.Append(data)
-	}
-
-	tbl.Render()
-}
-
 func main() {
-//TODO
-//	Add flags for filename and repoLimit
-//	Fix language % formula
-//	Add goroutines
-//	Add WaitGroups
-//	Add web representation with e-charts
+	//TODO
+	//	Add flags for filename and repoLimit
+	//	Fix language % formula
+	//	Add goroutines
+	//	Add WaitGroups
+	//	Add web representation with e-charts
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if len(os.Args) < 2 {
 		log.Fatal("No filenames in the cli arguments")
 	}
 	filename := os.Args[1]
 	pwd, _ := os.Getwd()
-	open, err := os.Open(fmt.Sprintf("%s\\cmd\\%s", pwd, filename))
+	open, err := os.Open(fmt.Sprintf("%s\\public\\%s", pwd, filename))
 	if err != nil {
 		log.Fatalf("error opening filename %s: %v", filename, err)
 		return
@@ -106,7 +69,7 @@ func main() {
 	//RepoLimit: -1 FOR NO LIMIT
 	//Language Threshold: min percentage to be included
 	users := fetchUsers(usernames, -1, 1)
-	presentGhData(users)
+	pres.PresentGhData(users)
 
 	defer func(open *os.File) {
 		err := open.Close()
