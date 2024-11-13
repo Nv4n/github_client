@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var wg sync.WaitGroup
+
 func fetchGithubData[ReturnType UserData | []RepoData | map[string]interface{}](client *http.Client, request *http.Request) ReturnType {
 	res, err := client.Do(request)
 	if err != nil {
@@ -49,21 +51,6 @@ func getLanguageApiURLs(repos []RepoData, repoLimit int) []string {
 	return langApiList
 }
 
-func calcLangDistribution(distribution LanguageDistribution, percentageThreshold float64) LanguageDistribution {
-	totalLines := float64(0)
-	langDistribution := make(map[string]float64)
-	for _, lines := range distribution {
-		totalLines += lines
-	}
-	for lang, val := range distribution {
-		percentage := val * 100.0 / totalLines
-		if percentage > percentageThreshold {
-			langDistribution[lang] = percentage
-		}
-	}
-	return langDistribution
-}
-
 func GetUserData(username string, repoLimit int, langThreshold float64) UserFormattedData {
 	client := http.Client{
 		Timeout: time.Second * 10,
@@ -75,8 +62,6 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 		log.Fatal(fmt.Errorf("empty gh_token"))
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
 	user := UserFullData{}
 	userRequest, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("https://api.github.com/users/%s", username), nil)
 	userRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
@@ -93,17 +78,25 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 	langApiList := getLanguageApiURLs(user.Repos, repoLimit)
 
 	languageKBList := make(map[string]float64)
+	semaphore := make(chan struct{}, 10)
 	for _, url := range langApiList {
+		wg.Add(1)
+		semaphore <- struct{}{}
 		languageRequest, _ := http.NewRequest(http.MethodGet, url, nil)
 		languageRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-
-		repoLangUsage := fetchGithubData[map[string]interface{}](&client, languageRequest)
-		for lang, val := range repoLangUsage {
-			if v, ok := val.(float64); ok {
-				languageKBList[lang] = languageKBList[lang] + v/1024.0
+		go func() {
+			defer wg.Done()
+			repoLangUsage := fetchGithubData[map[string]interface{}](&client, languageRequest)
+			for lang, val := range repoLangUsage {
+				if v, ok := val.(float64); ok {
+					languageKBList[lang] = languageKBList[lang] + v/1024.0
+				}
 			}
-		}
+			<-semaphore
+		}()
 	}
+	wg.Wait()
+	close(semaphore)
 
 	user.LanguageDistribution = calcLangDistribution(languageKBList, langThreshold)
 	totalForkCount := calcTotalForksCount(user.Repos)

@@ -22,3 +22,18 @@ func calcUserActivity(repos []RepoData) UserActivity {
 	}
 	return userActivity
 }
+
+func calcLangDistribution(distribution LanguageDistribution, percentageThreshold float64) LanguageDistribution {
+	totalLines := float64(0)
+	langDistribution := make(map[string]float64)
+	for _, lines := range distribution {
+		totalLines += lines
+	}
+	for lang, val := range distribution {
+		percentage := val * 100.0 / totalLines
+		if percentage > percentageThreshold {
+			langDistribution[lang] = percentage
+		}
+	}
+	return langDistribution
+}
