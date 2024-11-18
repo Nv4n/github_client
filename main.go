@@ -13,19 +13,21 @@ import (
 )
 
 var fileDir string
-var cli bool
-var web bool
+var isCliPres bool
+var isWebPres bool
 var repoLimit int
 var langThreshold float64
+var isHelpPres bool
 
 var wg sync.WaitGroup
 
 func init() {
 	flag.StringVar(&fileDir, "fileDir", "public\\usernames.txt", ".txt directory of all usernames")
-	flag.BoolVar(&cli, "cli", false, "output in cli")
-	flag.BoolVar(&web, "web", false, "output in web server")
+	flag.BoolVar(&isCliPres, "cli", false, "output in isCliPres")
+	flag.BoolVar(&isWebPres, "web", false, "output in isWebPres server")
 	flag.IntVar(&repoLimit, "repoLimit", -1, "-1 FOR NO LIMIT")
 	flag.Float64Var(&langThreshold, "langThreshold", 1, "min percentage to be included in output data")
+	flag.BoolVar(&isHelpPres, "help", false, "prints defaults")
 
 	err := godotenv.Load(".env")
 	if err != nil {
@@ -62,9 +64,14 @@ func fetchUsers(usernames []string) []gh.UserFormattedData {
 
 func main() {
 	//TODO
-	//	Add web representation with e-charts
+	//	Add isWebPres representation with e-charts
 
 	flag.Parse()
+
+	if isHelpPres {
+		flag.PrintDefaults()
+		return
+	}
 
 	pwd, _ := os.Getwd()
 	open, err := os.Open(fmt.Sprintf("%s\\%s", pwd, fileDir))
