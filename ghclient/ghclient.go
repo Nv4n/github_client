@@ -60,10 +60,23 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 	wg.Wait()
 	close(semaphore)
 
-	user.LanguageDistribution = calcLangDistribution(languageKBList, langThreshold)
-	totalForkCount := calcTotalForksCount(user.Repos)
-	userActivity := calcUserActivity(user.Repos)
+	wg.Add(3)
+	var totalForkCount int
+	var userActivity UserActivity
+	go func() {
+		defer wg.Done()
+		user.LanguageDistribution = calcLangDistribution(languageKBList, langThreshold)
+	}()
+	go func() {
+		defer wg.Done()
+		totalForkCount = calcTotalForksCount(user.Repos)
+	}()
+	go func() {
+		defer wg.Done()
+		userActivity = calcUserActivity(user.Repos)
+	}()
 
+	wg.Wait()
 	return UserFormattedData{
 		user.UserData.Username,
 		user.UserData.Followers,
