@@ -14,16 +14,13 @@ import (
 var wg sync.WaitGroup
 var token string
 
-func init() {
-	token = os.Getenv("GH_TOKEN")
-	if token == "" {
-		log.Fatal(fmt.Errorf("empty gh_token"))
-	}
-}
-
 func GetUserData(username string, repoLimit int, langThreshold float64) UserFormattedData {
 	client := http.Client{
 		Timeout: time.Second * 10,
+	}
+	token = os.Getenv("GH_TOKEN")
+	if token == "" {
+		log.Fatal(fmt.Errorf("empty gh_token"))
 	}
 	user := UserFullData{}
 
