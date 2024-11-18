@@ -12,6 +12,67 @@ import (
 )
 
 var wg sync.WaitGroup
+var token string
+
+func init() {
+	token = os.Getenv("GH_TOKEN")
+	if token == "" {
+		log.Fatal(fmt.Errorf("empty gh_token"))
+	}
+}
+
+func GetUserData(username string, repoLimit int, langThreshold float64) UserFormattedData {
+	client := http.Client{
+		Timeout: time.Second * 10,
+	}
+	user := UserFullData{}
+
+	userRequest, _ := getAuthorizedRequest(fmt.Sprintf("https://api.github.com/users/%s", username))
+	user.UserData = fetchGithubData[UserData](&client, userRequest)
+
+	reposRequest, _ := getAuthorizedRequest(user.UserData.ReposApiURL)
+	user.Repos = fetchGithubData[[]RepoData](&client, reposRequest)
+
+	if repoLimit == -1 {
+		repoLimit = len(user.Repos)
+	}
+
+	langApiList := getLanguageApiURLs(user.Repos, repoLimit)
+
+	languageKBList := make(map[string]float64)
+	semaphore := make(chan struct{}, 10)
+	for _, url := range langApiList {
+		wg.Add(1)
+		semaphore <- struct{}{}
+		languageRequest, _ := getAuthorizedRequest(url)
+
+		go func() {
+			defer wg.Done()
+			repoLangUsage := fetchGithubData[map[string]interface{}](&client, languageRequest)
+			for lang, val := range repoLangUsage {
+				if v, ok := val.(float64); ok {
+					languageKBList[lang] = languageKBList[lang] + v/1024.0
+				}
+			}
+			<-semaphore
+		}()
+	}
+	wg.Wait()
+	close(semaphore)
+
+	user.LanguageDistribution = calcLangDistribution(languageKBList, langThreshold)
+	totalForkCount := calcTotalForksCount(user.Repos)
+	userActivity := calcUserActivity(user.Repos)
+
+	return UserFormattedData{
+		user.UserData.Username,
+		user.UserData.Followers,
+		totalForkCount,
+		len(user.Repos),
+		user.LanguageDistribution,
+		userActivity,
+	}
+}
 
 func fetchGithubData[ReturnType UserData | []RepoData | map[string]interface{}](client *http.Client, request *http.Request) ReturnType {
 	res, err := client.Do(request)
@@ -51,63 +112,8 @@ func getLanguageApiURLs(repos []RepoData, repoLimit int) []string {
 	return langApiList
 }
 
-func GetUserData(username string, repoLimit int, langThreshold float64) UserFormattedData {
-	client := http.Client{
-		Timeout: time.Second * 10,
-	}
-
-	token := os.Getenv("GH_TOKEN")
-
-	if token == "" {
-		log.Fatal(fmt.Errorf("empty gh_token"))
-	}
-
-	user := UserFullData{}
-	userRequest, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("https://api.github.com/users/%s", username), nil)
-	userRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-	user.UserData = fetchGithubData[UserData](&client, userRequest)
-
-	reposRequest, _ := http.NewRequest(http.MethodGet, user.UserData.ReposApiURL, nil)
-	reposRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-	user.Repos = fetchGithubData[[]RepoData](&client, reposRequest)
-
-	if repoLimit == -1 {
-		repoLimit = len(user.Repos)
-	}
-
-	langApiList := getLanguageApiURLs(user.Repos, repoLimit)
-
-	languageKBList := make(map[string]float64)
-	semaphore := make(chan struct{}, 10)
-	for _, url := range langApiList {
-		wg.Add(1)
-		semaphore <- struct{}{}
-		languageRequest, _ := http.NewRequest(http.MethodGet, url, nil)
-		languageRequest.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-		go func() {
-			defer wg.Done()
-			repoLangUsage := fetchGithubData[map[string]interface{}](&client, languageRequest)
-			for lang, val := range repoLangUsage {
-				if v, ok := val.(float64); ok {
-					languageKBList[lang] = languageKBList[lang] + v/1024.0
-				}
-			}
-			<-semaphore
-		}()
-	}
-	wg.Wait()
-	close(semaphore)
-
-	user.LanguageDistribution = calcLangDistribution(languageKBList, langThreshold)
-	totalForkCount := calcTotalForksCount(user.Repos)
-	userActivity := calcUserActivity(user.Repos)
-
-	return UserFormattedData{
-		user.UserData.Username,
-		user.UserData.Followers,
-		totalForkCount,
-		len(user.Repos),
-		user.LanguageDistribution,
-		userActivity,
-	}
+func getAuthorizedRequest(req string) (*http.Request, error) {
+	request, _ := http.NewRequest(http.MethodGet, req, nil)
+	request.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	return request, nil
 }
