@@ -50,17 +50,17 @@ func readUsernames(file *os.File) []string {
 }
 
 func fetchUsers(usernames []string) []gh.UserFormattedData {
-	var users []gh.UserFormattedData
+	var users types.UserStorage
 	for _, u := range usernames {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			data := gh.GetUserData(u, repoLimit, langThreshold)
-			users = append(users, data)
+			users.Append(data)
 		}()
 	}
 	wg.Wait()
-	return users
+	return users.Value()
 }
 
 func main() {
