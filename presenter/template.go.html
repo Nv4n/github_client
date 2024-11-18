@@ -1,0 +1,20 @@
+{{define "Content"}}
+    {{range .}}
+        <table>
+            <tr>
+                <th>Username</th>
+                <th>Followers</th>
+                <th>Forks</th>
+                <th>Repo Count</th>
+            </tr>
+            <tr>
+                <td>{{.Username}}</td>
+                <td>{{.Followers}}</td>
+                <td>{{.ForksCount}}</td>
+                <td>{{.RepoCount}}</td>
+            </tr>
+        </table>
+        {{.Pie}}
+        {{.Line}}
+    {{end}}
+{{end}}
