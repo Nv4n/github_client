@@ -54,26 +54,27 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 			<-semaphore
 		}()
 	}
-	wg.Wait()
 	close(semaphore)
+	wg.Wait()
 
-	wg.Add(3)
+	var wgCalc sync.WaitGroup
+	wgCalc.Add(3)
 	var totalForkCount int
 	var userActivity UserActivity
 	go func() {
-		defer wg.Done()
+		defer wgCalc.Done()
 		user.LanguageDistribution = calcLangDistribution(languageKBList.Value(), langThreshold)
 	}()
 	go func() {
-		defer wg.Done()
+		defer wgCalc.Done()
 		totalForkCount = calcTotalForksCount(user.Repos)
 	}()
 	go func() {
-		defer wg.Done()
+		defer wgCalc.Done()
 		userActivity = calcUserActivity(user.Repos)
 	}()
 
-	wg.Wait()
+	wgCalc.Wait()
 	return UserFormattedData{
 		user.UserData.Username,
 		user.UserData.Followers,
