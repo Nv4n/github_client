@@ -57,9 +57,6 @@ func fetchUsers(usernames []string) []gh.UserFormattedData {
 
 func main() {
 	//TODO
-	//	Fix language % formula
-	//	Add goroutines
-	//	Add WaitGroups
 	//	Add web representation with e-charts
 
 	err := godotenv.Load(".env")
