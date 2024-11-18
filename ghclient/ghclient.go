@@ -36,7 +36,7 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 
 	langApiList := getLanguageApiURLs(user.Repos, repoLimit)
 
-	languageKBList := make(map[string]float64)
+	languageKBList := NewLanguageKBStorage()
 	semaphore := make(chan struct{}, 10)
 	for _, url := range langApiList {
 		wg.Add(1)
@@ -48,7 +48,7 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 			repoLangUsage := fetchGithubData[map[string]interface{}](&client, languageRequest)
 			for lang, val := range repoLangUsage {
 				if v, ok := val.(float64); ok {
-					languageKBList[lang] = languageKBList[lang] + v/1024.0
+					languageKBList.Increment(lang, v/1024.0)
 				}
 			}
 			<-semaphore
@@ -62,7 +62,7 @@ func GetUserData(username string, repoLimit int, langThreshold float64) UserForm
 	var userActivity UserActivity
 	go func() {
 		defer wg.Done()
-		user.LanguageDistribution = calcLangDistribution(languageKBList, langThreshold)
+		user.LanguageDistribution = calcLangDistribution(languageKBList.Value(), langThreshold)
 	}()
 	go func() {
 		defer wg.Done()

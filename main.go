@@ -6,6 +6,7 @@ import (
 	"fmt"
 	gh "ghclient/ghclient"
 	pres "ghclient/presenter"
+	"ghclient/types"
 	"github.com/joho/godotenv"
 	"log"
 	"os"

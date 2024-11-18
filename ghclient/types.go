@@ -1,6 +1,9 @@
 package ghclient
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type UserData struct {
 	Username    string `json:"login"`
@@ -32,4 +35,25 @@ type UserFormattedData struct {
 	RepoCount            int
 	LanguageDistribution LanguageDistribution
 	UserActivity         UserActivity
+}
+
+type LanguageKBStorage struct {
+	mu         sync.Mutex
+	langKBList map[string]float64
+}
+
+func NewLanguageKBStorage() *LanguageKBStorage {
+	return &LanguageKBStorage{mu: sync.Mutex{}, langKBList: make(map[string]float64)}
+}
+
+func (ls *LanguageKBStorage) Increment(key string, value float64) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	ls.langKBList[key] = ls.langKBList[key] + value
+}
+
+func (ls *LanguageKBStorage) Value() map[string]float64 {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.langKBList
 }
