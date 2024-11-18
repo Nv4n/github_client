@@ -26,6 +26,11 @@ func init() {
 	flag.BoolVar(&web, "web", false, "output in web server")
 	flag.IntVar(&repoLimit, "repoLimit", -1, "-1 FOR NO LIMIT")
 	flag.Float64Var(&langThreshold, "langThreshold", 1, "min percentage to be included in output data")
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func readUsernames(file *os.File) []string {
@@ -58,11 +63,6 @@ func fetchUsers(usernames []string) []gh.UserFormattedData {
 func main() {
 	//TODO
 	//	Add web representation with e-charts
-
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	flag.Parse()
 
