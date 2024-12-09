@@ -92,5 +92,14 @@ func main() {
 	usernames := readUsernames(open)
 	fmt.Println("Fetching data...")
 	users := fetchUsers(usernames)
-	pres.PresentGhData(users)
+	if isCliPres {
+		pres.PresentCli(users)
+	}
+	if isWebPres {
+		pres.PresentWeb(users)
+	}
+
+	if !isCliPres && !isWebPres {
+		fmt.Println("No presentation was chosen...")
+	}
 }

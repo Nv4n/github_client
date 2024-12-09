@@ -5,9 +5,12 @@ import (
 	"ghclient/ghclient"
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
+	"github.com/go-echarts/go-echarts/v2/render"
 	"html/template"
 	"log"
+	"math"
 	"net/http"
+	"sort"
 )
 
 type HtmlUserData struct {
@@ -15,8 +18,8 @@ type HtmlUserData struct {
 	Followers  int
 	ForksCount int
 	RepoCount  int
-	Pie        []byte
-	Line       []byte
+	Pie        template.HTML
+	Line       template.HTML
 }
 
 func PresentWeb(data []ghclient.UserFormattedData) {
@@ -27,27 +30,37 @@ func PresentWeb(data []ghclient.UserFormattedData) {
 		htmlData[i].Followers = user.Followers
 		htmlData[i].ForksCount = user.ForksCount
 		htmlData[i].RepoCount = user.RepoCount
-		htmlData[i].Pie = getPie(user.LanguageDistribution)
-		htmlData[i].Line = getLine(user.UserActivity)
+		htmlData[i].Pie = template.HTML(getPie(user.LanguageDistribution).RenderContent())
+		htmlData[i].Line = template.HTML(getLine(user.UserActivity).RenderContent())
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		tmpl := template.Must(template.ParseFiles("template.html"))
+		tmpl := template.Must(template.ParseFiles("views/template.go.html"))
 
-		_ = tmpl.Execute(w, htmlData)
+		_ = tmpl.ExecuteTemplate(w, "Content", htmlData)
 	})
+
+	fmt.Println("Listening to localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func getLine(data ghclient.UserActivity) []byte {
+func getLine(data ghclient.UserActivity) render.Renderer {
 	line := charts.NewLine()
+	var years []int
+	for k, _ := range data {
+		years = append(years, k)
+	}
+	sort.Ints(years)
 
 	line.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
-			Title: "Activity Distribution",
+			Title:  "Activity Distribution",
+			Bottom: "Year",
 		}),
 		charts.WithLegendOpts(opts.Legend{
 			Icon: "circle",
+			X:    "Year",
+			Y:    "Activity",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "category",
@@ -56,17 +69,20 @@ func getLine(data ghclient.UserActivity) []byte {
 			Min: 0,
 		}),
 	)
+	line.SetXAxis(years)
 
 	lineData := make([]opts.LineData, 0)
-	for k, v := range data {
-		lineData = append(lineData, opts.LineData{Value: float64(v), Name: fmt.Sprintf("Year (%d)", k)})
+	ind := 0
+	for _, k := range years {
+		lineData = append(lineData, opts.LineData{YAxisIndex: ind, Value: float64(data[k]), Name: fmt.Sprintf("Activity Y(%v)", k)})
+		ind++
 	}
 
 	line.AddSeries("Data", lineData)
-	return line.RenderContent()
+	return line.Renderer
 }
 
-func getPie(data ghclient.LanguageDistribution) []byte {
+func getPie(data ghclient.LanguageDistribution) render.Renderer {
 	pie := charts.NewPie()
 
 	pie.SetGlobalOptions(
@@ -76,14 +92,17 @@ func getPie(data ghclient.LanguageDistribution) []byte {
 		charts.WithLegendOpts(opts.Legend{
 			Icon: "circle",
 		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Min:     "5rem",
+			NameGap: 2,
+		}),
 	)
 
 	pieData := make([]opts.PieData, 0)
 	for k, v := range data {
-		pieData = append(pieData, opts.PieData{Name: k, Value: v})
+		pieData = append(pieData, opts.PieData{Name: k, Value: math.Round(v*100) / 100})
 	}
 
 	pie.AddSeries("Language Distribution", pieData)
-	buffer := pie.RenderContent()
-	return buffer
+	return pie.Renderer
 }

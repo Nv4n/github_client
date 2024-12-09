@@ -32,7 +32,7 @@ func formatUserActivity(userActivity gh.UserActivity) string {
 	return builder.String()
 }
 
-func PresentGhData(users []gh.UserFormattedData) {
+func PresentCli(users []gh.UserFormattedData) {
 	columns := []string{"Username", "Followers", "Forks", "Repo Count", "Language usage", "User Activity"}
 	tbl := tablewriter.NewWriter(os.Stdout)
 	tbl.SetHeader(columns)
